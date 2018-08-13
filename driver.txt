@@ -1,0 +1,61 @@
+`ifndef GUARD_DRIVER
+`define GUARD_DRIVER
+
+`include "packet.sv"
+`include "interface.sv"
+
+class Driver;
+  //driver must have interface and stimulus generator and connection to scoreboard  
+  virtual input_interface.IP input_intf;  
+  packet gpkt; 
+  mailbox drvr2sb; 
+  
+  function new(virtual input_interface.IP input_intf,mailbox drvr2sb);
+    this.input_intf=input_intf;
+    if (drvr2sb==null)
+      $display("ERROR,mailbox drvr2sb is null");
+    else
+      this.drvr2sb=drvr2sb;
+    gpkt=new();        
+  endfunction:new
+  
+  task start();
+    packet pkt;
+    logic[7:0] bytes[];
+    int length;
+    
+    repeat(num_of_pkts)
+    begin
+      repeat(3) @(posedge input_intf.clock); //3 clocks as interval whenever transmit a whole packet     
+      pkt=new gpkt; //new a g_pkt then assigned to pkt
+      if(pkt.randomize())
+      begin
+        $display("%0d:Driver:Randomization sucessful",$time);        
+        pkt.display(); //Be careful this line, must have
+        length=pkt.byte_pack(bytes); //pass empty bytes array to store random packet.
+        
+        //We also have ot assert control signal
+        foreach(bytes[i])
+        begin
+          @ (posedge input_intf.clock);
+          input_intf.cb.data_status<=1; //assign signal to interface use non-blocking
+          input_intf.cb.data_in<=bytes[i];
+        end
+        
+        @ (posedge input_intf.clock);
+        input_intf.cb.data_status<=0;
+        input_intf.cb.data_in<=0;
+        
+        drvr2sb.put(pkt);//put the generated pkt into scoreboard
+        $display("%0d:Driver:finishing friving the packet with the length",$time,length);  
+      end
+      else
+      begin
+        $display("%0d:Driver:Randomization failed",$time);
+        error++;
+      end
+    end
+  endtask:start
+endclass:Driver
+
+`endif

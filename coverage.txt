@@ -1,0 +1,33 @@
+`ifndef GUARD_COVERAGE
+`define GUARD_COVERAGE
+
+`include "packet.sv"
+
+class coverage;
+  packet pkt;
+  
+  //Becarefull, we don't define covergroup triggered at event which means the covergroup will only be sampled at sample() called.
+  covergroup switch_coverage;
+    length:coverpoint pkt.length;    
+    da:coverpoint pkt.da{
+      bins p0={`P0};
+      bins p1={`P1};
+      bins p2={`P2};
+      bins p3={`P3};
+    }
+    length_kind:coverpoint pkt.length_kind;
+    fcs_kind:coverpoint pkt.fcs_kind;
+    all_cross:cross length,da,length_kind,fcs_kind;    
+  endgroup
+  
+  function new();
+    switch_coverage=new(); //covergroup needs to be initialized
+  endfunction
+  
+  task sample(packet pkt); // this sample user defined
+    this.pkt=pkt;
+    switch_coverage.sample(); //this sample is built-in method
+  endtask:sample
+endclass
+    
+`endif

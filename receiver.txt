@@ -1,0 +1,52 @@
+`ifndef GUARD_RECEIVER 
+`define GUARD_RECEIVER
+
+`include "interface.sv"
+`include "packet.sv"
+
+class Receiver;
+  mailbox rcvr2sb;
+  virtual output_interface.OP output_intf;
+  
+  function new(virtual output_interface.OP output_intf,mailbox rcvr2sb);
+    this.output_intf=output_intf;
+    if (rcvr2sb==null)
+    begin
+      $display("%0d:Receiver:mailbox rcvr2sb is null",$time);
+      $finish;
+    end
+    else
+      this.rcvr2sb=rcvr2sb;
+  endfunction
+  
+  task start();
+    logic[7:0] bytes[];
+    packet pkt;
+    
+    forever 
+    begin
+      repeat(2) @ (posedge output_intf.clock);
+      
+      wait(output_intf.cb.ready)
+  	    output_intf.cb.read<=1;
+      
+      repeat(2) @ (posedge output_intf.clock);
+    
+      while(output_intf.cb.ready)
+      begin
+        bytes=new[bytes.size+1](bytes);//arr_2=new[biggerSize](arr_1) will move arr_1 data to bigger size arr_2. Here it increase its size whenver there is a data coming.
+        bytes[bytes.size-1]=output_intf.cb.data_out;
+        @ (posedge output_intf.clock); //assignment must happen at posedge clk
+      end
+      
+      output_intf.cb.read<=0;
+      pkt=new();
+      pkt.byte_unpack(bytes);
+      pkt.display();
+      rcvr2sb.put(pkt);
+      bytes.delete();      
+    end
+  endtask:start  
+endclass
+
+`endif

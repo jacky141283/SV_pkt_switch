@@ -1,0 +1,133 @@
+`ifndef GUARD_PACKET
+`define GUARD_PACKET
+
+`include "global.sv"
+  
+typedef enum {GOOD_fcs,BAD_fcs} fcs_kind_t;
+typedef enum {GOOD_length,BAD_length} length_kind_t; //It is only data type. Not identifier.
+
+class packet;
+  rand fcs_kind_t fcs_kind;
+  rand length_kind_t length_kind;
+  
+  rand bit[7:0] length; 
+  rand bit[7:0] sa; 
+  rand bit[7:0] da;
+  rand byte fcs;  //frame check sequence
+  rand byte data[];
+  
+  constraint address_c{da inside {`P0,`P1,`P2,`P3};}
+  
+  constraint payload_size_c{data.size() inside {[1:250]};}
+  
+  constraint length_kind_c{
+    (length_kind==GOOD_length)->length==data.size(); 
+    (length_kind==BAD_length)->length==data.size()+2; //we pick result matched result from randomness. So we use"==" rather assign 
+  }
+  constraint solve_size_length { solve  data.size before length; }
+  
+  constraint fcs_kind_c{
+    (fcs_kind==GOOD_fcs)->fcs==8'b0;
+    (fcs_kind==BAD_fcs)->fcs==8'b1;
+  }
+  
+  function byte cal_fcs; //return type is byte??
+    integer i;
+    byte result;
+    result=0;
+    result=result^this.sa;
+    result=result^this.da;
+    result=result^this.length;    
+    for(i=0;i<data.size;i=i+1)
+      result=result^data[i];
+    result=result^this.fcs;
+    return result; //have to use "return"
+  endfunction
+  
+  virtual function void display(); //if method is able to be overrided by other subclasses, use virtual
+    $display("\n----------End packet---------");
+    $display("fcs kind:%s",fcs_kind.name()); //we could use .name() showing the enumtype
+    $display("length kind:%s",length_kind.name());    
+    $display("------packet------");
+    $display("0: da is %h",this.da);
+    $display("1: sa is %h",this.sa);
+    $display("2: length is %d",this.length);    
+    foreach(data[i])
+      $write("%3d: %h",i+3,data[i]); //print on a single line
+    $display("\n %3d,%h",data.size+3,cal_fcs);
+    //Not display fcs, display fcs_calculation
+    $display("----------------------------------------------------------- \n");
+  endfunction
+  
+  virtual function int unsigned byte_pack(ref logic[7:0] bytes[]); 
+    //pass a empty bytes[] to store packet data
+    //Array will be passed by reference. 
+    bytes=new[data.size+4]; //bytes get initilaized here
+    bytes[0]=this.da;
+    bytes[1]=this.sa;
+    bytes[2]=this.length;
+
+    foreach (data[i])
+      bytes[i+3]=data[i];
+    bytes[data.size+3]=cal_fcs;
+    byte_pack=bytes.size; //byte_pack is function name, don't need to return again.
+  endfunction
+  
+  virtual function void byte_unpack(const ref logic[7:0] bytes[]);
+    //recdeve packet data and unpack it
+    //const means we can't modify it
+    this.da=bytes[0];
+    this.sa=bytes[1];
+    this.length=bytes[2];    
+    this.fcs=bytes[bytes.size-1];
+    data=new[bytes.size-4];
+    foreach (data[i])
+      data[i]=bytes[i+3];
+    this.fcs=0;    
+    if(bytes[bytes.size-1]!=cal_fcs)
+      this.fcs=1;    
+  endfunction
+  
+  virtual function bit compare(packet pkt);      
+    compare=1;
+    if(pkt==null)
+    begin
+      $display("ERROR, input pkt=null");
+      compare=0;
+    end
+    
+    if(pkt.sa!==this.sa)
+    begin
+      $display("ERROR, input pkt.sa doesn't match");
+      compare=0;
+    end
+    
+    if(pkt.da!==this.da)
+    begin
+      $display("ERROR, input pkt.da doesn't match");
+      compare=0;
+    end
+    
+    if(pkt.length!==this.length)
+    begin
+      $display("ERROR, input pkt.length doesn't match");
+      compare=0;
+    end
+    
+    foreach (data[i])
+      if(pkt.data[i]!==this.data[i])
+      begin
+        $display("ERROR, input pkt.data[&d] doesn't match",i);
+	    compare=0;
+	  end
+
+    if(pkt.fcs!==this.fcs)
+    begin
+      $display("ERROR, input pkt.fcs:%h doesn't match this.fcs:%h",pkt.fcs,this.fcs);
+      compare=0;
+    end
+    
+  endfunction
+endclass 
+
+`endif

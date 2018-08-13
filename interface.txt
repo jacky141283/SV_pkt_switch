@@ -1,0 +1,44 @@
+`ifndef GUARD_INTERFACE
+`define GUARD_INTERFACE
+
+interface mem_interface(input bit clock);
+  logic[1:0] mem_add;
+  logic mem_en;
+  logic mem_rd_wr;
+  logic[7:0] mem_data;
+  
+  clocking cb @ (posedge clock);
+    default input #1 output #2;
+    output mem_add, mem_en, mem_rd_wr, mem_data;    
+  endclocking
+  
+  modport MEM(clocking cb,input clock);
+endinterface
+
+interface input_interface(input bit clock);
+  logic[7:0] data_in;
+  logic data_status;
+  logic reset;
+  
+  clocking cb @ (posedge clock);
+    default input #1 output #2;
+    output data_status,data_in;
+  endclocking 
+
+  modport IP (clocking cb, output reset, input clock);
+endinterface:input_interface
+
+interface output_interface(input bit clock);
+  logic[7:0] data_out;
+  logic ready,read;
+
+  clocking cb @ (posedge clock);
+	default input #1 output #2;
+    input data_out,ready;
+    output read;    
+  endclocking
+  
+  modport OP(clocking cb, input clock);
+endinterface
+
+`endif
